@@ -24,12 +24,18 @@ def write_benchmark_tsv(result: BenchmarkRunResult, output_path: Path) -> Report
                 "音频路径",
                 "真实标签",
                 "预期标签",
+                "评测分组",
                 "最终标签",
                 "决策",
+                "判决原因",
+                "校准状态",
+                "判决证据",
                 "最高分",
                 "阈值",
+                "时延(ms)",
                 "是否正确",
                 "分数明细",
+                "判决元数据",
             ]
         )
         for item in result.items:
@@ -41,12 +47,22 @@ def write_benchmark_tsv(result: BenchmarkRunResult, output_path: Path) -> Report
                     str(item.audio_path),
                     item.truth_label,
                     item.expected_label,
+                    item.evaluation_group,
                     item.final_label,
                     item.decision,
+                    str(item.metadata.get("decision_reason", "")),
+                    str(item.metadata.get("calibration_status", "")),
+                    json.dumps(
+                        item.metadata.get("decision_evidence", {}),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
                     f"{item.best_score:.4f}",
                     f"{item.threshold_value:.4f}",
+                    f"{item.latency_ms:.3f}",
                     "是" if item.is_correct else "否",
                     json.dumps(item.score_breakdown, ensure_ascii=False, sort_keys=True),
+                    json.dumps(item.metadata, ensure_ascii=False, sort_keys=True),
                 ]
             )
     return ReportArtifact(artifact_type="tsv", path=output_path)

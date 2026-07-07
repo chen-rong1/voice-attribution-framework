@@ -88,7 +88,35 @@ def test_filesystem_loader_supports_flat_strict_layout(tmp_path: Path) -> None:
     assert len(clips) == 3
     assert clips[0].truth_label == "A"
     assert clips[0].expected_label == "A"
+    assert clips[0].evaluation_group == "external_known"
     assert clips[1].truth_label == "B"
     assert clips[1].expected_label == "B"
+    assert clips[1].evaluation_group == "external_known"
     assert clips[2].truth_label == "C"
     assert clips[2].expected_label == "UNKNOWN"
+    assert clips[2].evaluation_group == "external_unknown"
+
+
+def test_filesystem_loader_supports_explicit_nested_open_set_groups(tmp_path: Path) -> None:
+    test_root = tmp_path / "eval_nested"
+    (test_root / "internal_known__alice").mkdir(parents=True)
+    (test_root / "external_known__bob").mkdir(parents=True)
+    (test_root / "external_unknown__carol").mkdir(parents=True)
+    (test_root / "UNKNOWN").mkdir(parents=True)
+
+    _write_tone(test_root / "internal_known__alice" / "a.wav", 220.0)
+    _write_tone(test_root / "external_known__bob" / "b.wav", 330.0)
+    _write_tone(test_root / "external_unknown__carol" / "c.wav", 440.0)
+    _write_tone(test_root / "UNKNOWN" / "u.wav", 660.0)
+
+    clips = load_benchmark_clips_from_directory(test_root)
+
+    clip_map = {clip.clip_id: clip for clip in clips}
+    assert clip_map["b"].evaluation_group == "external_known"
+    assert clip_map["b"].truth_label == "bob"
+    assert clip_map["b"].expected_label == "bob"
+    assert clip_map["c"].evaluation_group == "external_unknown"
+    assert clip_map["c"].truth_label == "carol"
+    assert clip_map["c"].expected_label == "UNKNOWN"
+    assert clip_map["a"].evaluation_group == "internal_known"
+    assert clip_map["u"].evaluation_group == "external_unknown"

@@ -49,8 +49,28 @@ def test_business_loader_filters_mixed_and_uses_pure_list(tmp_path: Path) -> Non
     assert [clip.clip_id for clip in clips] == ["clip_x", "clip_u"]
     assert clips[0].expected_label == "speaker_a"
     assert clips[0].truth_label == "speaker_a"
+    assert clips[0].evaluation_group == "internal_known"
     assert clips[1].expected_label == "UNKNOWN"
+    assert clips[1].evaluation_group == "external_unknown"
     assert clips[1].metadata["source_segment_count"] == 1
+
+
+def test_business_loader_supports_explicit_external_known_group(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "business_external_known"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    truth_tsv_path = dataset_dir / "merged_truth.tsv"
+    with truth_tsv_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file, delimiter="\t")
+        writer.writerow(["测试片段", "预期标签", "真实身份集合", "评测分组"])
+        writer.writerow(["clip_known.wav", "speaker_b", "speaker_b", "external_known"])
+    _write_tone(dataset_dir / "clip_known.wav", 330.0)
+
+    clips = load_business_benchmark_clips(dataset_dir, truth_tsv_path=truth_tsv_path)
+
+    assert len(clips) == 1
+    assert clips[0].expected_label == "speaker_b"
+    assert clips[0].truth_label == "speaker_b"
+    assert clips[0].evaluation_group == "external_known"
 
 
 def test_business_cli_benchmark_script_runs_with_direct_enroll_files(tmp_path: Path) -> None:

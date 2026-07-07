@@ -12,6 +12,7 @@ from app.benchmark.filesystem import (
 )
 from app.benchmark.manifest import load_from_manifest
 from app.benchmark.models import BenchmarkRunConfig
+from app.common.errors import InvalidManifestError
 from app.benchmark.runner import BenchmarkRunner
 from app.common.config import load_simple_yaml_map
 from app.reporting.json_summary import write_benchmark_json_summary
@@ -43,6 +44,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-name", required=True, help="运行名称")
     parser.add_argument("--dataset-name", required=True, help="数据集名称")
     parser.add_argument("--dataset-version", default="v1", help="数据集版本")
+    parser.add_argument(
+        "--dataset-role",
+        default="general",
+        choices=["general", "internal_regression", "external_holdout", "stress"],
+        help="数据集角色，用于汇总和报告语义标注",
+    )
     parser.add_argument("--manifest-path", type=Path, help="可选的 CSV 清单路径")
     parser.add_argument("--dataset-root", type=Path, help="manifest 模式下的数据根目录")
     parser.add_argument("--scoring-config", type=Path, help="打分配置文件路径")
@@ -112,10 +119,13 @@ def main() -> int:
     if args.manifest_path is not None:
         if args.dataset_root is None:
             parser.error("使用 --manifest-path 时必须同时提供 --dataset-root")
-        enrollments, clips = load_from_manifest(
-            dataset_root=args.dataset_root,
-            manifest_path=args.manifest_path,
-        )
+        try:
+            enrollments, clips = load_from_manifest(
+                dataset_root=args.dataset_root,
+                manifest_path=args.manifest_path,
+            )
+        except InvalidManifestError as error:
+            parser.exit(2, error.to_cli_text() + "\n")
     elif args.business_dataset_dir is not None:
         if not args.enroll_speaker:
             parser.error("business 模式下必须提供 --enroll-speaker")
@@ -151,6 +161,7 @@ def main() -> int:
             scoring_strategy=ScoringStrategy(strategy_value),
             threshold_value=threshold_value,
             profile_aggregation_strategy=profile_aggregation_strategy,
+            dataset_role=args.dataset_role,
         ),
         enrollments=enrollments,
         clips=clips,

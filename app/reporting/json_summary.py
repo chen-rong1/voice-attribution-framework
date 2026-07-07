@@ -26,10 +26,17 @@ def write_benchmark_json_summary(
                 "expected_label": item.expected_label,
                 "final_label": item.final_label,
                 "decision": item.decision,
+                "decision_reason": str(item.metadata.get("decision_reason", "")),
+                "decision_evidence": item.metadata.get("decision_evidence", {}),
+                "calibration_status": str(item.metadata.get("calibration_status", "")),
+                "calibration_type": str(item.metadata.get("calibration_type", "")),
                 "best_score": item.best_score,
                 "threshold_value": item.threshold_value,
+                "latency_ms": item.latency_ms,
                 "is_correct": item.is_correct,
+                "evaluation_group": item.evaluation_group,
                 "score_breakdown": item.score_breakdown,
+                "metadata": item.metadata,
             }
             for item in result.items
         ],

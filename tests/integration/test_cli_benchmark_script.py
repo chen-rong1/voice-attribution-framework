@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +13,7 @@ def _write_tone(audio_path: Path, frequency: float, *, duration_sec: float = 1.5
     sample_rate = 16000
     timeline = np.linspace(0, duration_sec, int(sample_rate * duration_sec), endpoint=False)
     waveform = 0.2 * np.sin(2 * np.pi * frequency * timeline).astype(np.float32)
+    audio_path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(audio_path, waveform, sample_rate)
 
 
@@ -162,3 +164,103 @@ def test_cli_benchmark_script_supports_flat_strict_layout(tmp_path: Path) -> Non
 
     assert "strict_flat_demo" in result.stdout
     assert (output_root / "cli_flat_strict_测试总表.tsv").exists()
+
+
+def test_cli_benchmark_script_exposes_dataset_role_and_latency_in_summary(tmp_path: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    enroll_root = tmp_path / "enrollments"
+    test_root = tmp_path / "testset"
+    output_root = tmp_path / "outputs"
+    (enroll_root / "alice").mkdir(parents=True)
+    (test_root / "alice").mkdir(parents=True)
+    (test_root / "UNKNOWN").mkdir(parents=True)
+
+    _write_tone(enroll_root / "alice" / "a1.wav", 220.0)
+    _write_tone(test_root / "alice" / "q1.wav", 220.0)
+    _write_tone(test_root / "UNKNOWN" / "u1.wav", 660.0)
+
+    command = [
+        sys.executable,
+        str(project_root / "scripts" / "run_benchmark.py"),
+        "--enroll-dir",
+        str(enroll_root),
+        "--test-dir",
+        str(test_root),
+        "--output-dir",
+        str(output_root),
+        "--run-name",
+        "cli_holdout_like",
+        "--dataset-name",
+        "cli_dataset",
+        "--dataset-role",
+        "external_holdout",
+        "--dataset-version",
+        "v1",
+        "--threshold",
+        "0.5",
+        "--project-root",
+        str(project_root),
+    ]
+    subprocess.run(
+        command,
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads((output_root / "cli_holdout_like_摘要.json").read_text(encoding="utf-8"))
+    assert payload["summary"]["dataset_role"] == "external_holdout"
+    assert "average_latency_ms" in payload["summary"]
+    assert "latency_ms" in payload["items"][0]
+
+
+def test_cli_benchmark_script_fails_with_invalid_manifest_schema(tmp_path: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    dataset_root = tmp_path / "invalid_manifest_dataset"
+    manifest_path = dataset_root / "meta" / "manifest.csv"
+    output_root = tmp_path / "outputs"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "\n".join(
+            [
+                "kind,output_rel_path,agent,trial_role",
+                "enroll,processed/enroll/eval/enroll_A_1.wav,A,",
+                "attribution,processed/attribution/eval/clip_A.wav,A,bad_role",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_tone(dataset_root / "processed" / "enroll" / "eval" / "enroll_A_1.wav", 220.0)
+    _write_tone(dataset_root / "processed" / "attribution" / "eval" / "clip_A.wav", 220.0)
+
+    command = [
+        sys.executable,
+        str(project_root / "scripts" / "run_benchmark.py"),
+        "--manifest-path",
+        str(manifest_path),
+        "--dataset-root",
+        str(dataset_root),
+        "--output-dir",
+        str(output_root),
+        "--run-name",
+        "cli_invalid_manifest",
+        "--dataset-name",
+        "invalid_manifest",
+        "--project-root",
+        str(project_root),
+    ]
+    result = subprocess.run(
+        command,
+        cwd=project_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "manifest 校验失败" in result.stderr
+    assert "code=invalid_trial_role" in result.stderr
+    assert "row=3" in result.stderr
+    assert "column=trial_role" in result.stderr

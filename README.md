@@ -83,6 +83,7 @@
 - `UNKNOWN` 拒识
 - 多种 benchmark 数据加载方式
 - 标准化报告导出
+- `external_known` / `external_unknown` 混合 holdout 评测
 
 当前已实现的画像聚合 / 打分相关策略包括：
 
@@ -212,6 +213,89 @@ python scripts/run_benchmark.py \
 - 中文 `TSV` 总表
 - 中文 `Markdown` 报告
 - `JSON` 摘要
+
+当前摘要与报告会固定输出以下关键信息：
+
+- 总体准确率
+- `UNKNOWN` 拒识率
+- `external_known` Top1 准确率
+- `external_unknown` 拒识率
+- `REVIEW` 数量
+- 平均时延与最大时延
+- 标准化 `decision_reason`
+- 结构化 `decision_evidence`
+
+其中：
+
+- `decision_reason` 用于表达最终判决理由，适合作为聚合统计键
+- `decision_evidence` 用于表达结构化证据，当前采用分层 schema：
+- `summary`
+- `score_evidence`
+- `gate_evidence`
+- `candidate_evidence`
+- `profile_evidence`
+- `query_evidence`
+
+### Holdout 评测建议
+
+如果要用这个基座做更标准的开放集评测，推荐使用 manifest 模式，并在同一份清单中同时包含：
+
+- enrollment 样本
+- `external_known` positive query
+- `external_unknown` unknown query
+
+manifest 推荐显式提供 `trial_role` 字段来表达试验语义：
+
+- `external_known_query`
+- `external_unknown_query`
+
+为了兼容旧数据，当前 loader 仍接受 `trial_label`，并自动将以下旧值映射到标准语义：
+
+- `pos` / `positive` / `known` / `external_known`
+- `unknown`
+
+推荐的 manifest 列至少包括：
+
+- `kind`
+- `output_rel_path`
+- `agent`
+- `trial_role`
+
+manifest loader 当前会对以下内容做显式校验，并在 CLI 中直接报错：
+
+- 缺少必填列：`kind` / `output_rel_path` / `agent`
+- 行内缺少关键字段值
+- 不支持的 `kind`
+- attribution 样本缺少 `trial_role`
+- 非法 `trial_role`
+
+CLI 对 manifest 校验失败会输出稳定的结构化行格式，包含：
+
+- `code`
+- `row`
+- `column`
+- `message`
+
+同时建议在 CLI 中显式传入：
+
+```bash
+python scripts/run_benchmark.py \
+  --manifest-path /path/to/holdout_manifest.csv \
+  --dataset-root /path/to/dataset_root \
+  --dataset-role external_holdout \
+  --output-dir ./outputs/holdout_demo \
+  --run-name holdout_demo \
+  --dataset-name holdout_dataset
+```
+
+一个更推荐的 holdout manifest 片段示例如下：
+
+```csv
+kind,output_rel_path,source_file,start_sec,end_sec,agent,trial_role,trial_label,note
+enroll,processed/enroll/eval/enroll_A_1.wav,raw/a.wav,0,1.5,A,,enroll,demo
+attribution,processed/attribution/eval/clip_A.wav,raw/a.wav,0,1.5,A,external_known_query,pos,demo
+attribution,processed/attribution/eval/clip_C.wav,raw/c.wav,0,1.5,C,external_unknown_query,unknown,demo
+```
 
 ## 最小上手路径
 

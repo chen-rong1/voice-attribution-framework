@@ -1,3 +1,4 @@
 exclude_mixed: true
+dataset_role: general
 merge_gap_sec: 1.2
 report_language: zh-CN

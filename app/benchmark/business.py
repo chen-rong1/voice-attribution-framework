@@ -40,12 +40,14 @@ def load_business_benchmark_clips(
 
             audio_path = dataset_dir / clip_filename
             truth_label = row.get("真实身份集合", "").strip() or expected_label
+            evaluation_group = _resolve_business_evaluation_group(row, expected_label=expected_label)
             clips.append(
                 BenchmarkClip(
                     clip_id=audio_path.stem,
                     audio_path=audio_path,
                     truth_label=truth_label,
                     expected_label=expected_label,
+                    evaluation_group=evaluation_group,
                     metadata={
                         "source_segment_count": _parse_int(row.get("原始片段数", "")),
                         "source_segments": row.get("原始片段", "").strip(),
@@ -66,3 +68,20 @@ def _parse_int(value: str) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _resolve_business_evaluation_group(
+    row: dict[str, str],
+    *,
+    expected_label: str,
+) -> str:
+    for key in ("评测分组", "evaluation_group"):
+        raw_value = row.get(key, "").strip()
+        if raw_value in {"internal_known", "external_known", "external_unknown"}:
+            return raw_value
+    raw_trial_role = row.get("trial_role", "").strip().lower()
+    if raw_trial_role in {"external_known_query", "known_query", "external_known"}:
+        return "external_known"
+    if raw_trial_role in {"external_unknown_query", "unknown_query", "external_unknown"}:
+        return "external_unknown"
+    return "external_unknown" if expected_label == "UNKNOWN" else "internal_known"

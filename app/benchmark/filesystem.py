@@ -10,6 +10,7 @@ from app.services.identification import EnrollmentRecord
 
 STRICT_ENROLL_PATTERN = re.compile(r"^enroll_[^_]+_([A-Za-z0-9]+)_\d+$")
 STRICT_CLIP_PATTERN = re.compile(r"^clip_[^_]+_([A-Za-z0-9]+)_(.+)$")
+GROUP_PREFIX_PATTERN = re.compile(r"^(external_known|external_unknown|internal_known)__(.+)$")
 
 
 def _iter_audio_files(directory: Path) -> list[Path]:
@@ -56,14 +57,15 @@ def load_benchmark_clips_from_directory(test_root: Path) -> list[BenchmarkClip]:
 def _load_nested_benchmark_clips(label_dirs: list[Path]) -> list[BenchmarkClip]:
     clips: list[BenchmarkClip] = []
     for label_dir in label_dirs:
-        expected_label = label_dir.name
+        truth_label, expected_label, evaluation_group = _resolve_nested_label_dir(label_dir.name)
         for audio_path in _iter_audio_files(label_dir):
             clips.append(
                 BenchmarkClip(
                     clip_id=audio_path.stem,
                     audio_path=audio_path,
-                    truth_label=expected_label,
+                    truth_label=truth_label,
                     expected_label=expected_label,
+                    evaluation_group=evaluation_group,
                     metadata={"label_dir": label_dir.name},
                 )
             )
@@ -99,7 +101,22 @@ def _load_flat_benchmark_clips(test_root: Path) -> list[BenchmarkClip]:
                 audio_path=audio_path,
                 truth_label=truth_label,
                 expected_label=expected_label,
+                evaluation_group=(
+                    "external_unknown" if expected_label == "UNKNOWN" else "external_known"
+                ),
                 metadata={"trial_suffix": trial_suffix, "loader": "flat_strict"},
             )
         )
     return clips
+
+
+def _resolve_nested_label_dir(label_dir_name: str) -> tuple[str, str, str]:
+    if label_dir_name == "UNKNOWN":
+        return "UNKNOWN", "UNKNOWN", "external_unknown"
+    match = GROUP_PREFIX_PATTERN.match(label_dir_name)
+    if match is None:
+        return label_dir_name, label_dir_name, "internal_known"
+    group_name, raw_label = match.groups()
+    if group_name == "external_unknown":
+        return raw_label, "UNKNOWN", "external_unknown"
+    return raw_label, raw_label, group_name
