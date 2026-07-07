@@ -1,4 +1,0 @@
-strategy: max
-threshold: 0.31
-profile_aggregation_strategy: center
-reject_label: UNKNOWN

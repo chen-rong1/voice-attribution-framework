@@ -13,3 +13,4 @@ models/**/*.pt
 models/**/*.zip
 
 outputs/
+docs/

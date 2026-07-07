@@ -1,206 +1,184 @@
 # voice-attribution-framework
 
-## 这是什么
+`voice-attribution-framework` 是一个面向已知说话人集合的离线声纹归属框架，重点解决“注册一批目标说话人后，对分离出的语音片段进行归属或拒识”的问题。
 
-`voice-attribution-framework` 是一个面向真实业务场景的自研声纹归属框架。
+它不是一个通用语音大模型训练仓库，也不是一个完整的在线服务系统；当前定位是一个可复用、可扩展、可评测的离线基座。
 
-它现在重点解决的不是“开放集大模型训练”，而是下面这条业务链路：
+## 一眼看懂
 
-- 员工先录注册音频
-- 外场长录音先做说话人分离
-- 分离后的音频片段进入框架
-- 框架判断每段属于哪个已注册员工，或者判成 `UNKNOWN`
+- 目标问题：给定一批已注册说话人，判断测试片段属于谁，或输出 `UNKNOWN`
+- 当前形态：离线框架 + CLI + benchmark 体系
+- 适用前提：上游已完成 diarization 或已经拿到单说话人片段
+- 默认后端：基于 ONNX Runtime 的 `ECAPA-TDNN`
+- 仓库定位：基座项目，不承载一次性的业务专项实验脚本
 
-白话理解：
+## 为什么做这个项目
 
-- `voice-attribution-framework` 是我们要真正做成业务底座的新框架
+许多现成说话人识别项目更偏向模型能力展示或通用验证，不直接面向“注册样本有限、需要归属与拒识、还要可复现评测”的实际流程。
 
-## 现在做到哪了
+这个项目关注的是一条更工程化的链路：
 
-目前已经打通了“离线业务闭环”，也就是：
+- 注册样本管理
+- 说话人画像构建
+- 归属打分
+- `UNKNOWN` 拒识
+- benchmark 与报告导出
 
-- 注册音频 -> 员工画像
-- 分离片段 -> embedding 提取
-- embedding -> 打分归属
-- 归不到任何注册员工 -> `UNKNOWN`
-- 业务集评测 -> 中文报告输出
+该项目的重点不在于重新实现训练框架，而在于将注册、归属、拒识和评测流程整理为稳定的可复用底座。
 
-当前已经验证过两类数据：
+## 适用场景
 
-- 真实业务集
-  - `辽宁0222_前5分钟_diarization_thr1.0_merge_gap1.2`
-- 标准严格集
-  - `voice-benchmark-strict/processed/enroll/eval`
-  - `voice-benchmark-strict/processed/attribution/eval`
+这个项目适合下面这类任务：
 
-当前阶段结论：
+- 已知一批目标说话人
+- 每个说话人能提供少量注册音频
+- 上游已经完成长录音切分，输入是单说话人片段
+- 目标是判断片段属于哪位已注册说话人，或拒识为 `UNKNOWN`
 
-- 业务集最优结果：`30/31 = 96.77%`
-- 标准严格集结果：`8/8 = 100.00%`
+典型流程如下：
 
-这说明当前框架已经不是“只能跑 demo”，而是已经有了可复现、可验证的业务方案基线。
+1. 准备注册音频并构建说话人画像
+2. 对测试片段提取 embedding
+3. 使用打分策略完成归属判断
+4. 当最高分不满足条件时输出 `UNKNOWN`
 
-## 适合什么业务
+## 不适合什么
 
-当前最适合的业务形态是：
+下面这些并不是这个仓库当前的目标：
 
-- 已知一批员工或目标说话人
-- 每个目标说话人可以提供少量注册音频
-- 上游已经能把长录音切成单说话人片段
-- 业务目标是：
-  - 识别这段是不是某个已注册员工
-  - 如果不是，就拒识成 `UNKNOWN`
+- 从 0 训练一个新的大规模声纹模型
+- 替代完整的 diarization 系统
+- 提供开箱即用的在线 API 服务
+- 在完全开放集、完全无注册样本的场景直接做身份识别
+- 承载一次性的业务实验脚本、专题报告和临时结果文件
 
-典型例子就是你现在要做的“加油站员工归属”：
+## 当前状态
 
-- 每个员工先注册
-- 加油区录音先做说话人分离
-- 分离后片段传给框架
-- 框架输出：`员工A / 员工B / UNKNOWN`
+当前仓库已经具备完整的离线闭环能力：
 
-## 现在还没做完的部分
+- 注册音频加载与标准化
+- embedding 提取
+- 说话人画像构建
+- 多种打分与拒识策略
+- benchmark 执行
+- TSV / Markdown / JSON 结果导出
 
-当前已经有“核心识别引擎”，但还没完全做成生产系统。
+当前还不是完整的生产系统。下面这些能力仍属于后续工作：
 
-还没完全收口的部分主要是：
-
-- 员工注册库后台管理
-- HTTP/API 服务化入口
-- diarization 上游自动对接
+- 注册库管理
+- API / 服务化接入
+- 与 diarization 上游的自动化衔接
+- 批量任务调度
 - 结果入库和业务系统集成
-- 更完整的脏样本治理和批量任务调度
 
-所以准确说法是：
+## 核心能力
 
-- 核心业务闭环已经能跑
-- 生产化接入层还需要继续补
+目前仓库内提供的核心能力包括：
 
-## 目录说明
+- 音频标准化加载
+- 轻量质量分估计
+- 基于 ONNX Runtime 的 ECAPA-TDNN embedding 提取
+- 画像构建
+- 多种打分策略
+- `UNKNOWN` 拒识
+- 多种 benchmark 数据加载方式
+- 标准化报告导出
 
-当前这个项目目录里主要放四类东西：
+当前已实现的画像聚合 / 打分相关策略包括：
 
-- 设计文档
-- 核心代码
-- 配置文件
-- benchmark 和实验产物
+- `center`
+- `max`
+- `top_k_mean`
+- `quality_weighted_center`
 
-目前重点文件包括：
+## 项目亮点
 
-- `README.md`
-- `01_总体方案与实施计划.md`
-- `02_目录结构设计.md`
-- `03_数据库与画像库设计.md`
-- `04_Embedding后端抽象设计.md`
-- `05_打分与拒识策略设计.md`
-- `06_Benchmark与报告规范.md`
-- `07_开发日志.md`
+- 基座清晰：核心代码、默认配置、CLI、测试、文档分层明确
+- 可评测：除识别结果外，还提供 benchmark 和标准化导出
+- 可拒识：默认将 `UNKNOWN` 作为正式输出，而不是只做强制分类
+- 可扩展：embedding backend、画像构建、打分策略都做了模块化抽象
+- 可落地：更贴近“注册一批人后进行片段归属”的业务流程
 
-## 当前底座说明
+## 模型与实现
 
-当前底层 backbone 先统一围绕 `ECAPA-TDNN`。
+当前默认 embedding backend 基于 `ECAPA-TDNN`，以本地 ONNX 模型作为推理后端。
 
-第一版稳定可跑底座是：
-
-- `WeSpeaker ECAPA1024_LM ONNX`
-
-但这里要特别强调：
-
-- 这不代表我们要继续依赖 `WeSpeaker` 原项目整套逻辑
-- 也不代表我们只是“接第 11 个第三方项目”
-
-真正的定位是：
-
-- 把 `WeSpeaker ONNX` 当成一个可控的 embedding 引擎
-- 在这个引擎上自研：
-  - 前处理
-  - 画像构建
-  - 打分与拒识
-  - benchmark
-  - 业务接入层
-
-白话理解：
-
-- `WeSpeaker ONNX` 只是发动机毛坯
-- 这个仓库要做的是整车
-
-## 当前模型资产
-
-为了保证这个项目以后能独立上传和运行，当前已经把模型资产本地化到项目内：
+仓库内保留了运行所需的最小模型资产：
 
 - `models/ecapa_tdnn/wespeaker_ecapa1024_lm/avg_model.onnx`
 - `models/ecapa_tdnn/wespeaker_ecapa1024_lm/avg_model.onnx.data`
 - `models/ecapa_tdnn/wespeaker_ecapa1024_lm/config.yaml`
 
-当前原则是：
+这里的目标不是集成某个第三方项目的整套逻辑，而是将可控的 embedding 引擎作为底层能力，并在其上提供：
 
-- 只保留运行 ONNX 推理真正需要的文件
-- 不把旧项目里无关残留一股脑复制进来
+- 前处理
+- 画像构建
+- 打分与拒识
+- benchmark 体系
+- 业务接入层
 
-## 当前核心能力
+## 仓库结构
 
-目前已经落地的核心能力包括：
+当前仓库重点包含以下内容：
 
-- 音频标准化加载
-- 轻量质量分估计
-- ECAPA-TDNN ONNX embedding 提取
-- 质量感知画像构建
-- 多种打分策略
-  - `center`
-  - `max`
-  - `top_k_mean`
-  - `quality_weighted_center`
-- `UNKNOWN` 拒识
-- 业务集加载
-- 标准严格集加载
-- 阈值扫描
-- 注册样本推荐
-- 注册样本组合搜索
-- 官方方案固化与一键复跑
+- `app/`: 核心实现
+- `configs/`: 通用默认配置
+- `models/`: 本地模型资产
+- `scripts/`: 正式 CLI 入口
+- `tests/`: 单元测试与集成测试
+
+设计文档和内部研发记录建议保留在本地工作区或私有仓库中，不作为公开发布内容的一部分。
+
+目前保留在基座仓库中的正式入口是：
+
+- `scripts/run_benchmark.py`
+
+## 环境要求
+
+- Python `3.12+`
+- macOS / Linux 优先
+- 推荐使用 `uv`
+- 需要本地可用的 ONNX Runtime 运行环境
 
 ## 数据输入方式
 
-当前已经支持四种输入形态：
+`run_benchmark.py` 当前支持以下几种输入形态：
 
 - 目录模式
   - 注册目录：`enrollments/<speaker_id>/*.wav`
   - 测试目录：`testset/<label>/*.wav`
-- 平铺标准严格集目录
-  - 例如：
-    - `enroll_ES2005_A_1.wav`
-    - `clip_ES2005_A_pos_1.wav`
 - manifest 模式
-  - 适配类似 `voice-benchmark-strict/meta/eval_clip_manifest_2026-07-02.csv`
-- 业务平铺目录模式
-  - 例如：
-    - 一批平铺 `.wav`
-    - `merged_truth.tsv`
-    - `pure_test_files.txt`
-    - `segments.json`
+  - 通过 CSV manifest 指定注册与测试样本
+- 平铺业务目录模式
+  - 使用平铺 `.wav` 目录配合真值表或纯净样本清单
 
-## 主脚本
+## 安装
 
-当前主要脚本有这几个：
+项目使用 Python `3.12+`。
 
-- `scripts/run_benchmark.py`
-  - 跑单次 benchmark
-- `scripts/scan_business_thresholds.py`
-  - 扫业务集阈值
-- `scripts/recommend_business_enrollment_pack.py`
-  - 推荐注册样本
-- `scripts/search_best_enrollment_combination.py`
-  - 搜索最优注册组合
-- `scripts/run_official_liaoning0222_solution.py`
-  - 一键复跑当前官方方案
+如果你使用 `uv`：
+
+```bash
+uv sync
+```
+
+如果你使用 `pip`：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
 ## 快速开始
 
 ### 目录模式
 
 ```bash
-.venv/bin/python scripts/run_benchmark.py \
+python scripts/run_benchmark.py \
   --enroll-dir /path/to/enrollments \
   --test-dir /path/to/testset \
-  --output-dir outputs/benchmark/demo \
+  --output-dir ./outputs/demo \
   --run-name demo_run \
   --dataset-name demo_dataset
 ```
@@ -208,99 +186,171 @@
 ### manifest 模式
 
 ```bash
-.venv/bin/python scripts/run_benchmark.py \
-  --output-dir outputs/benchmark/strict_eval \
-  --run-name strict_eval \
-  --dataset-name voice-benchmark-strict \
-  --dataset-version 2026-07-02 \
-  --manifest-path /path/to/meta/eval_clip_manifest.csv \
-  --dataset-root /path/to/dataset_root
+python scripts/run_benchmark.py \
+  --manifest-path /path/to/eval_manifest.csv \
+  --dataset-root /path/to/dataset_root \
+  --output-dir ./outputs/manifest_demo \
+  --run-name manifest_demo \
+  --dataset-name manifest_dataset
 ```
 
-### 业务平铺目录模式
+### 平铺业务目录模式
 
 ```bash
-.venv/bin/python scripts/run_benchmark.py \
+python scripts/run_benchmark.py \
   --business-dataset-dir /path/to/business_dataset \
-  --enroll-speaker xiaoli \
+  --enroll-speaker speaker_a \
   --enroll-list /path/to/enroll_list.txt \
   --scoring-config /path/to/scoring.yaml \
-  --output-dir outputs/benchmark/business_run \
-  --run-name business_run \
+  --output-dir ./outputs/business_demo \
+  --run-name business_demo \
   --dataset-name business_dataset
 ```
 
-当前脚本会自动输出：
+脚本默认输出：
 
 - 中文 `TSV` 总表
-- 中文 `Markdown` 正式报告
+- 中文 `Markdown` 报告
 - `JSON` 摘要
 
-## 当前官方方案
+## 最小上手路径
 
-目前已经固化出一套“辽宁0222 / 小丽”官方验证方案。
+首次使用时，建议按下面顺序上手：
 
-它的目标很明确：
+1. 先准备一小批注册音频和测试片段
+2. 使用目录模式跑通一次 `run_benchmark.py`
+3. 查看输出的 TSV / Markdown / JSON
+4. 再根据需要切换到 manifest 模式或业务平铺目录模式
+5. 最后再考虑自定义 scoring 配置或替换 backend
 
-- 业务集结果稳定复现
-- 标准严格集不翻车
-- 不再依赖手工复制一长串 `--enroll-file`
+## 配置
 
-当前官方方案由两部分组成：
+基座仓库目前只保留通用默认配置：
 
-- 打分配置：
-  - `configs/scoring/business_best_verified.yaml`
-- 注册清单：
-  - `configs/enrollment_packs/liaoning0222_xiaoli_best_verified.txt`
+- `configs/audio/default.yaml`
+- `configs/benchmark/default.yaml`
+- `configs/models/default.yaml`
+- `configs/scoring/default.yaml`
 
-这套方案当前验证结果为：
+业务专项配置建议放在独立的实验层仓库中，而不是直接放入基座仓库。
 
-- 业务集：`30/31 = 96.77%`
-- 标准严格集：`8/8 = 100.00%`
+## 测试
 
-如果只想跑业务集，可直接使用：
-
-```bash
-.venv/bin/python scripts/run_benchmark.py \
-  --business-dataset-dir /Users/工作/声纹识别/voice-benchmark-strict/processed/attribution/辽宁0222_前5分钟_diarization_thr1.0_merge_gap1.2 \
-  --enroll-speaker xiaoli \
-  --enroll-list configs/enrollment_packs/liaoning0222_xiaoli_best_verified.txt \
-  --scoring-config configs/scoring/business_best_verified.yaml \
-  --output-dir outputs/benchmark/liaoning0222_official_business \
-  --run-name liaoning0222_official_business \
-  --dataset-name liaoning0222_business
-```
-
-如果想一键同时复跑业务集和标准严格集，可直接使用：
+运行测试：
 
 ```bash
-.venv/bin/python scripts/run_official_liaoning0222_solution.py
+pytest
 ```
 
-这个脚本会自动输出：
+如果只想跑某一类测试：
 
-- `outputs/benchmark/official_liaoning0222_solution/business/`
-- `outputs/benchmark/official_liaoning0222_solution/strict/`
-- `outputs/benchmark/official_liaoning0222_solution/官方方案汇总.json`
-- `outputs/benchmark/official_liaoning0222_solution/官方方案汇总.md`
+```bash
+pytest tests/unit
+pytest tests/integration
+```
 
-## 当前结论
+## 仓库边界
 
-当前方向已经很明确：
+这个仓库的目标是成为一个干净的“基座项目”，因此这里只保留：
 
-- 不从 0 训练一个全新大模型
-- 先自研适配真实业务场景的 ECAPA 声纹归属框架
-- 底层 backbone 先统一围绕 `ECAPA-TDNN`
-- 先把注册画像、归属打分、拒识、业务接入和 benchmark 体系做扎实
+- 通用核心代码
+- 通用默认配置
+- 正式入口
+- 测试
+
+业务专项评测、人工真值脚本、阈值扫描、注册样本搜索、专项报告导出等实验层内容，已经迁移到同级目录：
+
+- `../voice-attribution-evals`
+
+公开发布时，建议继续保持这个边界，不要将一次性的业务实验脚本、结果文件或内部研发材料重新放回这里。
+
+## 限制说明
+
+在使用这个项目之前，建议注意下面几点：
+
+- 输入音频质量会显著影响结果
+- 如果注册样本过短、过少或存在串音，画像稳定性会下降
+- 当前仓库默认面向离线流程，不等同于现成在线服务
+- 上游 diarization 质量会直接影响最终归属效果
+- 当前默认模型与配置不保证适合所有语言、所有场景、所有设备录音条件
+
+## 模型来源与合规
+
+仓库当前包含运行所需的本地模型文件。公开发布或对外分发前，建议明确检查：
+
+- 模型文件的来源
+- 模型权重的再分发许可
+- 第三方依赖的许可证要求
+- 是否需要在 README 中补充致谢或来源说明
+
+对于合规要求较高的场景，建议在公开仓库或对外分发前先补齐这部分信息。
+
+当前仓库已经提供模型来源说明文档：
+
+- `models/MODEL_PROVENANCE.md`
+
+其中包含：
+
+- 当前打包模型的来源口径
+- 可确认的配置特征
+- 发布时的许可说明
+- 文件完整性校验值
+
+## FAQ
+
+### 这个项目能直接处理长录音吗
+
+不能直接替代 diarization。当前更推荐把它放在说话人分离之后，处理单说话人片段。
+
+### 这个项目能直接拿来上线吗
+
+当前版本更适合离线验证、策略研发和业务接入前的基座建设，不建议直接视为完整生产系统。
+
+### 只有一条注册样本能不能用
+
+可以跑，但风险会明显变高。注册样本过少、过短或不干净时，误认和漏认都更容易发生。
+
+### 业务专项脚本在哪里
+
+已经迁到同级目录 `../voice-attribution-evals`，这个仓库只保留通用底座能力。
+
+## 社区与协作
+
+如果你希望参与协作或提交问题，可优先阅读以下文件：
+
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `CODE_OF_CONDUCT.md`
+
+仓库已提供：
+
+- Bug 反馈模板
+- 功能建议模板
+- Pull Request 模板
 
 ## 后续方向
 
-接下来更重要的工作不是再堆更多模型，而是继续补业务化接入层：
+后续更重要的工作主要有：
 
-- 员工注册库管理
-- diarization 输出自动接入
-- 批量任务处理
-- 结果落库
+- 注册库管理
+- diarization 自动接入
 - API 服务化
+- 批量任务处理
+- 结果落库与业务集成
 
-到那一步，这个框架才算真正从“离线验证框架”走向“业务系统底座”。
+## Roadmap
+
+- 完善注册样本质量约束
+- 增强拒识与边界保护策略
+- 提供更清晰的服务化接入层
+- 补充更标准的公开示例与许可证信息
+
+## License
+
+仓库代码当前采用 `MIT` 许可证，见 `LICENSE`。
+
+需要额外注意的是：
+
+- 仓库代码使用 `MIT`
+- 仓库内模型文件是否允许再分发，仍需单独核查
+- 第三方依赖与模型来源的许可证要求，也应在正式公开前确认清楚
