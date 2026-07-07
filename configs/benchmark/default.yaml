@@ -1,0 +1,3 @@
+exclude_mixed: true
+merge_gap_sec: 1.2
+report_language: zh-CN

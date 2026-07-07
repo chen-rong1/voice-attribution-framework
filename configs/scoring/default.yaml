@@ -1,0 +1,4 @@
+strategy: center
+threshold: 0.41
+profile_aggregation_strategy: quality_weighted_center
+reject_label: UNKNOWN

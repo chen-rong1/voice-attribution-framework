@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+.coverage
+.DS_Store
+
+*.egg-info/
+
+models/**/*.pt
+models/**/*.zip
+
+outputs/

@@ -1,0 +1,4 @@
+backbone_name: ecapa_tdnn
+feature_version: fbank80_v1
+bootstrap_backend: wespeaker-ecapa1024-lm-onnx
+bootstrap_model_dir: models/ecapa_tdnn/wespeaker_ecapa1024_lm
